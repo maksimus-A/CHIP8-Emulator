@@ -1,0 +1,19 @@
+# Minimum required version of CMake
+cmake_minimum_required(VERSION 3.15)
+
+# Project name
+project(CHIP8_Emulator)
+
+# Set the C standard
+set(CMAKE_C_STANDARD 99)
+
+# Find the GLFW package installed via Homebrew
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLFW REQUIRED glfw3)
+
+# Add the source files
+add_executable(${PROJECT_NAME} src/main.c)
+
+# Link GLFW and OpenGL (OpenGL is built-in on macOS)
+target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${GLFW_LIBRARIES} "-framework OpenGL" "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")

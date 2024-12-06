@@ -4,7 +4,9 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/Cellar/sdl2/2.0.10/include/SDL2"
+                "/usr/local/Cellar/sdl2/2.0.10/include/SDL2",
+                "/opt/homebrew/opt/glfw",
+                "/opt/homebrew/Cellar/glfw/3.4/include"
             ],
             "defines": [],
             "macFrameworkPath": [
