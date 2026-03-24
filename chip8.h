@@ -13,6 +13,10 @@
 #define PROGRAM_START 0x200
 #define MEM_SIZE      4096
 
+/* CPU instructions executed per host frame (~60 Hz). Tune for speed vs XOR flicker on some ROMs. */
+#ifndef CHIP8_CYCLES_PER_FRAME
+#define CHIP8_CYCLES_PER_FRAME 10
+#endif
 
 unsigned short opcode; // opcodes
 unsigned char memory[4096]; // memory allocation

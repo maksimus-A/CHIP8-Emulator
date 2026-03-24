@@ -246,6 +246,9 @@ void emulateCycle()
         unsigned short x_pos = V[(opcode & 0x0F00) >> 8];
         unsigned short y_pos = V[(opcode & 0x00F0) >> 4];
         unsigned short height = opcode & 0x000F;
+        if (height == 0) {
+            height = 16; /* CHIP-48 / common ROMs: 0 => 16 rows (VIP often drew nothing) */
+        }
         unsigned short pixel;
 
         V[0xF] = 0;
@@ -372,18 +375,16 @@ void emulateCycle()
     default:
         printf("Unknown opcode: 0x%X\n", opcode);
     }
-    // Execute Opcode
 
-      // Update timers at ~60Hz.
+    /* ~60 Hz delay/sound timers (wall clock; decoupled from how many opcodes run per frame). */
     if (now - last_timer_tick >= 16) {
         if (delay_timer > 0) {
             --delay_timer;
         }
-
-        if (sound_timer > 0)
-        {
-            if (sound_timer == 1)
+        if (sound_timer > 0) {
+            if (sound_timer == 1) {
                 printf("BEEP!\n");
+            }
             --sound_timer;
         }
         last_timer_tick = now;
@@ -423,23 +424,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const int cycles_per_frame = 10;
-    const uint32_t frame_ms = 16; // ~60 FPS
+    const uint32_t frame_ms = 16; /* ~60 FPS host pacing */
 
-    // Emulation loop
     while (Running) {
         uint32_t frame_start = SDL_GetTicks();
-
-        // Emulate one cycle
-        for (int i = 0; i < cycles_per_frame; ++i) {
-            emulateCycle();
-        }
-
-        // If the draw flag is set, update the screen
-        if (drawFlag) {
-            display_draw(d, gfx);
-            drawFlag = false;
-        }
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -451,11 +439,19 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-
         SDL_PumpEvents();
         const Uint8* keyboard_state = SDL_GetKeyboardState(NULL);
         for (uint8_t i = 0; i < NUM_KEYS; ++i) {
             key_set(key_map[i], keyboard_state[scancodes[i]] ? 1 : 0);
+        }
+
+        for (int i = 0; i < CHIP8_CYCLES_PER_FRAME; ++i) {
+            emulateCycle();
+        }
+
+        if (drawFlag) {
+            display_draw(d, gfx);
+            drawFlag = false;
         }
 
         uint32_t elapsed = SDL_GetTicks() - frame_start;

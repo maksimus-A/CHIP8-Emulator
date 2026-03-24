@@ -11,7 +11,8 @@ It was written in C, using SDL to render the screen.
 
 ### Build with CMake
 
-This project now supports cross-platform CMake builds.
+This project now supports cross-platform CMake builds (You need SDL2 to have the build work).
+
 
 Requirements:
 - C compiler with C11 support
@@ -35,3 +36,6 @@ Notes:
 - macOS (Homebrew): `brew install sdl2`
 - Windows (vcpkg): `vcpkg install sdl2` and configure CMake with your vcpkg toolchain file
 
+![CHIP-8 emulator](chip8-emulator-screenshot.png)
+
+![CHIP-8 emulator](chip8-emulator-screenshot-2.png)
