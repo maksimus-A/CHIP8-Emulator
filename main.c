@@ -5,13 +5,12 @@
 #include"display.h"
 #include"chip8.h"
 
-Running = true;
+bool Running = true;
 // OLD CHIP8-EMULATOR.C BC IM STUPID
 uint8_t program_load(char* filename) {
     // Open file
-    FILE* pFile;
-    if (fopen_s(&pFile, filename, "rb") == NULL)
-    {
+    FILE* pFile = fopen(filename, "rb");
+    if (pFile == NULL) {
         fputs("File error", stderr);
         return false;
     }
@@ -90,10 +89,17 @@ void initialize()
 
 void emulateCycle()
 {
+    static uint32_t last_timer_tick = 0;
+    uint32_t now = SDL_GetTicks();
+    if (last_timer_tick == 0) {
+        last_timer_tick = now;
+    }
     // Fetch Opcode
     opcode = memory[pc + 0];
     opcode <<= 8;
     opcode |= memory[pc + 1];
+    uint8_t x = (opcode & 0x0F00) >> 8;
+    uint8_t y = (opcode & 0x00F0) >> 4;
     // Decode opcode
     // opcode & 0xF000 is bit AND operation, will only return first 4 digits of number
     switch (opcode & 0xF000) // Basic disassembler
@@ -105,15 +111,23 @@ void emulateCycle()
             for (uint16_t i = 0; i < WIDTH * HEIGHT; i++) {
                 gfx[i] = 0;
             }
+            drawFlag = true;
             pc += 2;
             break;
         case 0x000E: // 00EE: return from subroutine
-            // IDK LOL
+            --sp;
+            pc = stack[sp];
+            pc += 2;
             break;
 
         default:
             printf("Unknown opcode [0x0000]: 0x%X\n", opcode);
+            pc += 2;
+            break;
         }
+        break;
+    case 0x1000: // 1NNN: Jump to address NNN
+        pc = opcode & 0x0FFF;
         break;
     case 0x2000: // 2NNN: Calls subroutine at address NNN
         stack[sp] = pc; // set stack pointer to program counter
@@ -122,44 +136,48 @@ void emulateCycle()
         break;
         // CHECK
     case 0x3000: // 3XNN: Skips next instruction if VX equals NN
-        if (V[opcode & 0x0F00 >> 8] == (opcode & 0x00FF)) {
+        if (V[x] == (opcode & 0x00FF)) {
             pc += 4;
         }
         else { pc += 2; }
         break;
     case 0x4000: //4xnn: Skips instruction if VX DOESN'T equal NN
-        if (V[opcode & 0x0F00 >> 8] != (opcode & 0x00FF)) {
+        if (V[x] != (opcode & 0x00FF)) {
             pc += 4;
         }
         else { pc += 2; }
         break;
     case 0x5000: // 5XY0: skips instruction if VX == VY
-        if (V[opcode & 0x0F00 >> 8] == V[opcode & 0x00F0 >> 4]) {
+        if (V[x] == V[y]) {
             pc += 4;
         }
         else { pc += 2; }
         break;
     case 0x6000: // 6XNN: Sets VX to NN.
-        V[opcode & 0x0F00 >> 8] = (opcode & 0x00FF);
+        V[x] = (opcode & 0x00FF);
         pc += 2;
         break;
     case 0x7000: //7XNN: Adds NN to VX.
-        V[opcode & 0x0F00 >> 8] += (opcode & 0x00FF);
+        V[x] += (opcode & 0x00FF);
         pc += 2;
         break;
     case 0x8000:
         switch (opcode & 0x000F) { // opcode & 0x000F makes the number only store the last 4 bits (as 000F is 16 so only 16 numbers total) (and & is bit AND)
         case 0x0000: // 8XY0: Sets VX to VY.
-            V[opcode & 0x0F00 >> 8] = V[opcode & 0x00F0 >> 4];
+            V[x] = V[y];
+            pc += 2;
             break;
         case 0x0001: // 8XY1: Sets VX to VX | VY
-            V[opcode & 0x0F00 >> 8] |= V[opcode & 0x00F0 >> 4];
+            V[x] |= V[y];
+            pc += 2;
             break;
         case 0x0002: // 8XY2: Sets VX to VX & VY
-            V[opcode & 0x0F00 >> 8] &= V[opcode & 0x00F0 >> 4];
+            V[x] &= V[y];
+            pc += 2;
             break;
         case 0x0003: // 8XY3: Sets VX to VY.
-            V[opcode & 0x0F00 >> 8] ^= V[opcode & 0x00F0 >> 4];
+            V[x] ^= V[y];
+            pc += 2;
             break;
         case 0x0004: // 8XY4: Adds VY to VX, VF is 1 if there is carry, else 0
         // V[opcode & 0x00F0 >> 4] retrives VY from the opcode (0x00Y0)(same for VX but bit shift is 8 bc thats where it is in the address (0x0X00))
@@ -169,48 +187,43 @@ void emulateCycle()
 
         // x is 8 and y is 4
 
-            if (V[opcode & 0x00F0 >> 4] > (0xFF - V[opcode & 0x0F00 >> 8])) { // Y > 255-X
+            if (V[y] > (0xFF - V[x])) { // Y > 255-X
                 V[0xF] = 1; // carry flag is 1
             }
             else {
                 V[0xF] = 0;
             }
-            V[opcode & 0x0F00 >> 8] += V[opcode & 0x00F0 >> 4]; // Add y to x
+            V[x] += V[y]; // Add y to x
             pc += 2; // increment program counter
             break;
         case 0x0005: // 8XY5: VY is subtracted from VX
-            if (V[opcode & 0x00F0 >> 4] < (0xFF - V[opcode & 0x0F00 >> 8])) {// If y < x
-                V[0xF] = 1; // carry flag is 1
-            }
-            else {
-                V[0xF] = 0;
-            }
-            V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4]; // Subtract Y from X
+            V[0xF] = (V[x] >= V[y]) ? 1 : 0;
+            V[x] -= V[y]; // Subtract Y from X
             pc += 2; // increment program counter
             break;
         case 0x0006: // 8XY6: Stores the least significant bit of VX in VF and then shifts VX to the right by 1
-            V[0xF] = V[(opcode & 0x0F00) >> 8] & 0x1;
-            V[(opcode & 0x0F00) >> 8] >>= 1;
+            V[0xF] = V[x] & 0x1;
+            V[x] >>= 1;
             pc += 2;
             break;
         case 0x0007: // 8XY7: Sets VX to VY - VX. VF is 0 on borrow, 1 if not
-            if (V[opcode & 0x00F0 >> 4] < (0xFF - V[opcode & 0x0F00 >> 8])) {// If y < x
-                V[0xF] = 1; // carry flag is 1
-            }
-            else {
-                V[0xF] = 0;
-            }
-            V[(opcode & 0x0F00) >> 8] = V[opcode & 0x00F0 >> 4] - V[opcode & 0x0F00 >> 8]; // Subtract Y from X
+            V[0xF] = (V[y] >= V[x]) ? 1 : 0;
+            V[x] = V[y] - V[x]; // Subtract Y from X
             pc += 2; // increment program counter
             break;
         case 0x000E: // 8XYE: Stores the most significant bit of VX in VF and then shifts VX to the left by 1
-            V[0xF] = V[(opcode & 0x0F00) >> 8] >> 7;
-            V[(opcode & 0x0F00) >> 8] <<= 1;
+            V[0xF] = V[x] >> 7;
+            V[x] <<= 1;
+            pc += 2;
+            break;
+        default:
+            printf("Unknown opcode [0x8000]: 0x%X\n", opcode);
             pc += 2;
             break;
         }
+        break;
     case 0x9000: // 9XY0: Skips the next instruction if VX doesn't equal VY.
-        if (V[opcode & 0x0F00 >> 8] != V[opcode & 0x00F0 >> 4]) {
+        if (V[x] != V[y]) {
             pc += 4;
         }
         else { pc += 2; }
@@ -224,14 +237,14 @@ void emulateCycle()
         pc = (opcode & 0x0FFF) + V[0];
         break;
     case 0xC000: {// CXNN: Sets VX to the result of a bitwise and operation on a random number (0-255) and NN.
-        V[opcode & 0x0F00 >> 8] = (rand() % 0xFF) & (opcode & 0x00FF);
+        V[x] = (rand() % 256) & (opcode & 0x00FF);
         pc += 2;
     }
                break;
     case 0xD000:
     {
-        unsigned short x = V[(opcode & 0x0F00) >> 8];
-        unsigned short y = V[(opcode & 0x00F0) >> 4];
+        unsigned short x_pos = V[(opcode & 0x0F00) >> 8];
+        unsigned short y_pos = V[(opcode & 0x00F0) >> 4];
         unsigned short height = opcode & 0x000F;
         unsigned short pixel;
 
@@ -243,9 +256,13 @@ void emulateCycle()
             {
                 if ((pixel & (0x80 >> xline)) != 0)
                 {
-                    if (gfx[(x + xline + ((y + yline) * 64))] == 1)
+                    uint8_t px = (uint8_t)((x_pos + xline) % WIDTH);
+                    uint8_t py = (uint8_t)((y_pos + yline) % HEIGHT);
+                    uint16_t index = (uint16_t)(px + (py * WIDTH));
+
+                    if (gfx[index] == 1)
                         V[0xF] = 1;
-                    gfx[x + xline + ((y + yline) * 64)] ^= 1;
+                    gfx[index] ^= 1;
                 }
             }
         }
@@ -255,26 +272,31 @@ void emulateCycle()
     }
     break;
     case 0xE000:
-        switch (opcode & 0x000F)
+        switch (opcode & 0x00FF)
         {
             // EX9E: Skips the next instruction
             // if the key stored in VX is pressed
-        case 0x000E: {
-            if (key[V[(opcode & 0x0F00) >> 8]] != 0)
+        case 0x009E: {
+            if (key[V[x]] != 0)
                 pc += 4;
             else
                 pc += 2;
 
         }
                    break;
-        case 0x0001: { //EXA1: Skips the next instruction if the key stored in VX isn't pressed.
-            if (key[V[(opcode & 0x0F00) >> 8]] == 0)
+        case 0x00A1: { //EXA1: Skips the next instruction if the key stored in VX isn't pressed.
+            if (key[V[x]] == 0)
                 pc += 4;
             else
                 pc += 2;
         }
                    break;
+        default:
+            printf("Unknown opcode [0xE000]: 0x%X\n", opcode);
+            pc += 2;
+            break;
         }
+        break;
     case 0xF000: {
         switch (opcode & 0x00FF) {
         case 0x0007: { // fx07: sets VX to value of delay timer
@@ -283,24 +305,38 @@ void emulateCycle()
         }
                    break;
         case 0x000A: { // fx0A: a key press is awaited then stored in VX
-            V[(opcode & 0x0F00) >> 8] = delay_timer;
-            pc += 2;
+            bool key_pressed = false;
+            for (uint8_t i = 0; i < NUM_KEYS; ++i) {
+                if (key[i]) {
+                    V[x] = i;
+                    key_pressed = true;
+                    break;
+                }
+            }
+            // Block on this opcode until a key is pressed.
+            if (key_pressed) {
+                pc += 2;
+            }
         }
                    break;
         case 0x0015: { // fx15: sets delay timer to value of VX
-            delay_timer = V[(opcode & 0x0F00) >> 8];
+            delay_timer = V[x];
+            pc += 2;
         }
                    break;
         case 0x0018: { // fx18: sets sound timer to value of VX
-            sound_timer = V[(opcode & 0x0F00) >> 8];
+            sound_timer = V[x];
+            pc += 2;
         }
                    break;
         case 0x001E: { // FX1E: Adds VX to I. Vf not affected.
-            I += V[(opcode & 0x0F00) >> 8];
+            I += V[x];
+            pc += 2;
         }
                    break;
         case 0x0029: { // FX29: Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font.
-
+            I = V[x] * 5;
+            pc += 2;
         }
                    break;
         case 0x0033: {
@@ -326,6 +362,10 @@ void emulateCycle()
             pc += 2;
         }
                    break;
+        default:
+            printf("Unknown opcode [0xF000]: 0x%X\n", opcode);
+            pc += 2;
+            break;
         }
     }
                break;
@@ -334,15 +374,19 @@ void emulateCycle()
     }
     // Execute Opcode
 
-      // Update timers
-    if (delay_timer > 0)
-        --delay_timer;
+      // Update timers at ~60Hz.
+    if (now - last_timer_tick >= 16) {
+        if (delay_timer > 0) {
+            --delay_timer;
+        }
 
-    if (sound_timer > 0)
-    {
-        if (sound_timer == 1)
-            printf("BEEP!\n");
-        --sound_timer;
+        if (sound_timer > 0)
+        {
+            if (sound_timer == 1)
+                printf("BEEP!\n");
+            --sound_timer;
+        }
+        last_timer_tick = now;
     }
 }
 
@@ -361,13 +405,35 @@ int main(int argc, char** argv) {
 
     // Initialize the Chip8 system and load the game into the memory
 
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <path-to-rom>\n", argv[0]);
+        return 1;
+    }
+
+    initialize();
+
     display* d = display_init(WIDTH, HEIGHT);
-    program_load("tetris.c8");
+    if (!d) {
+        fprintf(stderr, "Failed to initialize display\n");
+        return 1;
+    }
+    if (program_load(argv[1]) != 0) {
+        fprintf(stderr, "Failed to load ROM: %s\n", argv[1]);
+        display_free(d);
+        return 1;
+    }
+
+    const int cycles_per_frame = 10;
+    const uint32_t frame_ms = 16; // ~60 FPS
 
     // Emulation loop
     while (Running) {
+        uint32_t frame_start = SDL_GetTicks();
+
         // Emulate one cycle
-        emulateCycle();
+        for (int i = 0; i < cycles_per_frame; ++i) {
+            emulateCycle();
+        }
 
         // If the draw flag is set, update the screen
         if (drawFlag) {
@@ -381,24 +447,23 @@ int main(int argc, char** argv) {
             case SDL_QUIT:
                 Running = false;
                 break;
-            case SDL_KEYUP:
-            case SDL_KEYDOWN:
-                for (uint8_t i = 0; i < NUM_KEYS; i++) {
-                    if (event.key.keysym.sym == scancodes[i]) { // if key pressed is in the array
-                        uint8_t state = (event.type == SDL_KEYDOWN) ? 1 : 0;
-                        key_set(key_map[i], state);
-                        break;
-                    }
-                }
-                break;
             default:
                 break;
             }
-
-            SDL_Delay(1); // probably slows down clock of CPU?
         }
-        display_free(d); // frees memory allocated to display
-        // no chip8 memory so dont have to free that
+
+        SDL_PumpEvents();
+        const Uint8* keyboard_state = SDL_GetKeyboardState(NULL);
+        for (uint8_t i = 0; i < NUM_KEYS; ++i) {
+            key_set(key_map[i], keyboard_state[scancodes[i]] ? 1 : 0);
+        }
+
+        uint32_t elapsed = SDL_GetTicks() - frame_start;
+        if (elapsed < frame_ms) {
+            SDL_Delay(frame_ms - elapsed);
+        }
     }
+    display_free(d); // frees memory allocated to display
+    // no chip8 memory so dont have to free that
     return 0;
 }

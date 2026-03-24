@@ -9,5 +9,29 @@ It was written in C, using SDL to render the screen.
 
 ## Use
 
-`Complete later`
+### Build with CMake
+
+This project now supports cross-platform CMake builds.
+
+Requirements:
+- C compiler with C11 support
+- SDL2 development package
+- CMake 3.16+
+
+Build steps:
+```bash
+cmake -S . -B build
+cmake --build build
+```
+
+Run:
+```bash
+./build/chip8_emulator
+```
+
+Notes:
+- Linux (Debian/Ubuntu): install `libsdl2-dev`
+- Fedora: install `SDL2-devel`
+- macOS (Homebrew): `brew install sdl2`
+- Windows (vcpkg): `vcpkg install sdl2` and configure CMake with your vcpkg toolchain file
 

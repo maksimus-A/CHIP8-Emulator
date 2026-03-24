@@ -9,15 +9,15 @@
 #define MEM_SIZE      4096
 
 #include <stdint.h>
+#include "SDL.h"
 
 #define PIXEL_SIZE 10
 
-struct display_t {
-    SDL_Surface* screen;
+typedef struct display_t {
+    SDL_Window* window;
+    SDL_Renderer* renderer;
     uint8_t width, height;
-} display_t;
-
-typedef struct display_t display;
+} display;
 
 display* display_init(uint8_t width, uint8_t height);
 void display_free(display* d);

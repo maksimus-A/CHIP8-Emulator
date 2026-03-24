@@ -2,6 +2,8 @@
 // CHIP8 Stuff
 #ifndef CHIP8_H
 #include<stdbool.h>
+#include<stdint.h>
+#include"SDL.h"
 
 #define CHIP8_H
 
@@ -24,7 +26,7 @@ unsigned short stack[16]; // stack simulation
 unsigned short sp; // stack pointer
 unsigned char key[16]; // store key presses
 
-const static chip8_fontset[80] =
+static const uint8_t chip8_fontset[80] =
 {
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
   0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -44,10 +46,10 @@ const static chip8_fontset[80] =
   0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 uint8_t scancodes[NUM_KEYS] = {
-    0x0a, 0x0b, 0x0c, 0x0d, // 1 2 3 4
-    0x18, 0x19, 0x1a, 0x1b, // q w e r
-    0x26, 0x27, 0x28, 0x29, // a s d f
-    0x34, 0x35, 0x36, 0x37  // z x c v
+    SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
+    SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_E, SDL_SCANCODE_R,
+    SDL_SCANCODE_A, SDL_SCANCODE_S, SDL_SCANCODE_D, SDL_SCANCODE_F,
+    SDL_SCANCODE_Z, SDL_SCANCODE_X, SDL_SCANCODE_C, SDL_SCANCODE_V
 };
 uint8_t key_map[NUM_KEYS] = {
     0x01, 0x02, 0x03, 0x0c, // 1 2 3 c
